@@ -16,6 +16,7 @@ const debug = require('debug')('loopback:monorepo');
 const {
   isDryRun,
   isTypeScriptPackage,
+  isMonorepoPackage,
   loadLernaRepo,
   cloneJson,
   isJsonEqual,
@@ -41,9 +42,7 @@ async function updatePackageJsonFiles(options) {
     const pkgFile = p.manifestLocation;
     const pkg = cloneJson(p.toJSON());
 
-    const isLernaRepo = fs.existsSync(path.join(p.location, 'lerna.json'));
-
-    if (isTypeScriptPackage(p) && !isLernaRepo) {
+    if (isTypeScriptPackage(p) && !isMonorepoPackage(p)) {
       pkg.main = 'dist/index.js';
       pkg.types = 'dist/index.d.ts';
     }
@@ -64,8 +63,12 @@ async function updatePackageJsonFiles(options) {
       directory: path.relative(p.rootPath, p.location).replace(/\\/g, '/'),
     };
 
-    pkg.engines = rootPkg.engines;
-    if (!isJsonEqual(pkg, p.toJSON())) {
+    if (isMonorepoPackage(p)) {
+      pkg.engines = rootPkg.engines;
+    } else {
+      pkg.engines.node = rootPkg.engines.node;
+    }
+
       if (isDryRun(options)) {
         printJson(pkg);
       } else {
