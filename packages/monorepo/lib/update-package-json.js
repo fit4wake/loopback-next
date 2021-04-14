@@ -25,6 +25,32 @@ const {
   runMain,
 } = require('./script-util');
 
+const orderedPkgProperties = [
+  'name',
+  'description',
+  'version',
+  'keywords',
+  'private',
+  'license',
+  'bin',
+  'main',
+  'unpkg',
+  'types',
+  'author',
+  'copyright.owner',
+  'homepage',
+  'repository',
+  'bugs',
+  'engines',
+  'scripts',
+  'publishConfig',
+  'files',
+  'peerDependencies',
+  'dependencies',
+  'devDependencies',
+  'config',
+];
+
 /**
  * Check all required fields of package.json for each package on the matching
  * with root package.json
@@ -69,12 +95,37 @@ async function updatePackageJsonFiles(options) {
       pkg.engines.node = rootPkg.engines.node;
     }
 
+    const unknownProperties = []
+    const orderedPkg = Object.fromEntries(
+      Object.entries(pkg).sort(([a], [b]) => {
+        const ai = orderedPkgProperties.indexOf(a)
+        const bi = orderedPkgProperties.indexOf(b)
+        // add the properties that are not in the list before peerDependencies
+        if (ai === -1) {
+          if (unknownProperties.indexOf(a) === -1) unknownProperties.push(a)
+          return orderedPkgProperties.indexOf('peerDependencies') - orderedPkgProperties.indexOf(b)
+        }
+        if (bi === -1) {
+          if (unknownProperties.indexOf(b) === -1) unknownProperties.push(b)
+          return orderedPkgProperties.indexOf(a) - orderedPkgProperties.indexOf('peerDependencies')
+        }
+        return ai - orderedPkgProperties.indexOf(b)
+      }),
+    );
+
+    if (unknownProperties.length) {
+      console.group(`Properties are not recognized in ${p.name}:`)
+      unknownProperties.forEach((key) => console.log('-', key))
+      console.groupEnd()
+    }
+
+    if (!isJsonEqual(orderedPkg, p.toJSON())) {
       if (isDryRun(options)) {
-        printJson(pkg);
+        printJson(orderedPkg);
       } else {
         changed = true;
         console.log('%s has been updated.', path.relative(p.rootPath, pkgFile));
-        writeJsonSync(pkgFile, pkg);
+        writeJsonSync(pkgFile, orderedPkg);
       }
     }
   }
